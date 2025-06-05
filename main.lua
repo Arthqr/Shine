@@ -1,0 +1,749 @@
+--!strict
+-- Nebula UI Library v1.0
+-- Modern, sleek UI components for Roblox
+
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local Nebula = {}
+Nebula.__index = Nebula
+
+-- Theme Configuration
+local Theme = {
+    Background = Color3.fromRGB(15, 15, 20),
+    Surface = Color3.fromRGB(25, 25, 35),
+    Primary = Color3.fromRGB(120, 119, 255),
+    Secondary = Color3.fromRGB(255, 119, 120),
+    Success = Color3.fromRGB(119, 255, 120),
+    Warning = Color3.fromRGB(255, 200, 119),
+    Error = Color3.fromRGB(255, 100, 100),
+    Text = Color3.fromRGB(240, 240, 245),
+    TextSecondary = Color3.fromRGB(160, 160, 170),
+    Border = Color3.fromRGB(45, 45, 55),
+    Hover = Color3.fromRGB(35, 35, 45),
+}
+
+-- Animation Presets
+local Animations = {
+    Fast = TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+    Medium = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+    Slow = TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+    Bounce = TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+}
+
+-- Utility Functions
+local function CreateCorner(radius: number?): UICorner
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, radius or 8)
+    return corner
+end
+
+local function CreateStroke(color: Color3?, thickness: number?): UIStroke
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = color or Theme.Border
+    stroke.Thickness = thickness or 1
+    return stroke
+end
+
+local function CreateGradient(colors: {Color3}): UIGradient
+    local gradient = Instance.new("UIGradient")
+    local colorSequence = {}
+    
+    for i, color in ipairs(colors) do
+        table.insert(colorSequence, ColorSequenceKeypoint.new((i-1)/(#colors-1), color))
+    end
+    
+    gradient.Color = ColorSequence.new(colorSequence)
+    return gradient
+end
+
+-- Main Library Constructor
+function Nebula.new(config: {
+    Title: string?,
+    Size: UDim2?,
+    Position: UDim2?,
+    Theme: string?,
+    Draggable: boolean?
+})
+    local self = setmetatable({}, Nebula)
+    
+    -- Create ScreenGui
+    self.ScreenGui = Instance.new("ScreenGui")
+    self.ScreenGui.Name = "NebulaUI"
+    self.ScreenGui.ResetOnSpawn = false
+    self.ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    self.ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+    
+    -- Main Window
+    self.Window = Instance.new("Frame")
+    self.Window.Name = "MainWindow"
+    self.Window.Size = config.Size or UDim2.new(0, 580, 0, 460)
+    self.Window.Position = config.Position or UDim2.new(0.5, -290, 0.5, -230)
+    self.Window.BackgroundColor3 = Theme.Background
+    self.Window.BorderSizePixel = 0
+    self.Window.Parent = self.ScreenGui
+    
+    CreateCorner(12).Parent = self.Window
+    CreateStroke(Theme.Border, 1).Parent = self.Window
+    
+    -- Title Bar
+    self.TitleBar = Instance.new("Frame")
+    self.TitleBar.Name = "TitleBar"
+    self.TitleBar.Size = UDim2.new(1, 0, 0, 50)
+    self.TitleBar.BackgroundColor3 = Theme.Surface
+    self.TitleBar.BorderSizePixel = 0
+    self.TitleBar.Parent = self.Window
+    
+    CreateCorner(12).Parent = self.TitleBar
+    
+    -- Title Text
+    self.Title = Instance.new("TextLabel")
+    self.Title.Name = "Title"
+    self.Title.Size = UDim2.new(1, -60, 1, 0)
+    self.Title.Position = UDim2.new(0, 20, 0, 0)
+    self.Title.BackgroundTransparency = 1
+    self.Title.Text = config.Title or "Nebula UI"
+    self.Title.TextColor3 = Theme.Text
+    self.Title.TextSize = 18
+    self.Title.Font = Enum.Font.GothamBold
+    self.Title.TextXAlignment = Enum.TextXAlignment.Left
+    self.Title.Parent = self.TitleBar
+    
+    -- Close Button
+    self.CloseButton = Instance.new("TextButton")
+    self.CloseButton.Name = "CloseButton"
+    self.CloseButton.Size = UDim2.new(0, 30, 0, 30)
+    self.CloseButton.Position = UDim2.new(1, -40, 0.5, -15)
+    self.CloseButton.BackgroundColor3 = Theme.Error
+    self.CloseButton.BorderSizePixel = 0
+    self.CloseButton.Text = "×"
+    self.CloseButton.TextColor3 = Color3.new(1, 1, 1)
+    self.CloseButton.TextSize = 18
+    self.CloseButton.Font = Enum.Font.GothamBold
+    self.CloseButton.Parent = self.TitleBar
+    
+    CreateCorner(6).Parent = self.CloseButton
+    
+    -- Content Container
+    self.Content = Instance.new("ScrollingFrame")
+    self.Content.Name = "Content"
+    self.Content.Size = UDim2.new(1, -20, 1, -70)
+    self.Content.Position = UDim2.new(0, 10, 0, 60)
+    self.Content.BackgroundTransparency = 1
+    self.Content.BorderSizePixel = 0
+    self.Content.ScrollBarThickness = 4
+    self.Content.ScrollBarImageColor3 = Theme.Primary
+    self.Content.CanvasSize = UDim2.new(0, 0, 0, 0)
+    self.Content.Parent = self.Window
+    
+    -- Layout
+    local layout = Instance.new("UIListLayout")
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Padding = UDim.new(0, 8)
+    layout.Parent = self.Content
+    
+    -- Auto-resize canvas
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        self.Content.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 10)
+    end)
+    
+    -- Dragging functionality
+    if config.Draggable ~= false then
+        self:MakeDraggable()
+    end
+    
+    -- Close button functionality
+    self.CloseButton.MouseButton1Click:Connect(function()
+        self:Destroy()
+    end)
+    
+    -- Hover effects
+    self:AddHoverEffect(self.CloseButton, Theme.Error, Color3.fromRGB(255, 80, 80))
+    
+    return self
+end
+
+-- Dragging System
+function Nebula:MakeDraggable()
+    local dragging = false
+    local dragStart = nil
+    local startPos = nil
+    
+    self.TitleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = self.Window.Position
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            self.Window.Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+end
+
+-- Hover Effect System
+function Nebula:AddHoverEffect(element: GuiObject, normalColor: Color3, hoverColor: Color3)
+    element.MouseEnter:Connect(function()
+        TweenService:Create(element, Animations.Fast, {BackgroundColor3 = hoverColor}):Play()
+    end)
+    
+    element.MouseLeave:Connect(function()
+        TweenService:Create(element, Animations.Fast, {BackgroundColor3 = normalColor}):Play()
+    end)
+end
+
+-- Tab System
+function Nebula:CreateTab(config: {
+    Name: string,
+    Icon: string?,
+    Color: Color3?
+})
+    local tab = {}
+    
+    -- Tab Button
+    local tabButton = Instance.new("TextButton")
+    tabButton.Name = config.Name .. "Tab"
+    tabButton.Size = UDim2.new(0, 120, 0, 35)
+    tabButton.BackgroundColor3 = Theme.Surface
+    tabButton.BorderSizePixel = 0
+    tabButton.Text = config.Name
+    tabButton.TextColor3 = Theme.TextSecondary
+    tabButton.TextSize = 14
+    tabButton.Font = Enum.Font.Gotham
+    
+    CreateCorner(8).Parent = tabButton
+    
+    -- Tab Content
+    local tabContent = Instance.new("Frame")
+    tabContent.Name = config.Name .. "Content"
+    tabContent.Size = UDim2.new(1, 0, 1, 0)
+    tabContent.BackgroundTransparency = 1
+    tabContent.Visible = false
+    tabContent.Parent = self.Content
+    
+    local contentLayout = Instance.new("UIListLayout")
+    contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    contentLayout.Padding = UDim.new(0, 8)
+    contentLayout.Parent = tabContent
+    
+    tab.Content = tabContent
+    tab.Button = tabButton
+    
+    return tab
+end
+
+-- Button Component
+function Nebula:CreateButton(parent: Frame, config: {
+    Text: string,
+    Callback: () -> (),
+    Color: Color3?,
+    Size: UDim2?
+})
+    local button = Instance.new("TextButton")
+    button.Name = "NebulaButton"
+    button.Size = config.Size or UDim2.new(1, 0, 0, 40)
+    button.BackgroundColor3 = config.Color or Theme.Primary
+    button.BorderSizePixel = 0
+    button.Text = config.Text
+    button.TextColor3 = Color3.new(1, 1, 1)
+    button.TextSize = 14
+    button.Font = Enum.Font.GothamMedium
+    button.Parent = parent
+    
+    CreateCorner(8).Parent = button
+    
+    -- Click effect
+    button.MouseButton1Click:Connect(function()
+        -- Scale animation
+        local scaleDown = TweenService:Create(button, Animations.Fast, {Size = button.Size - UDim2.new(0, 4, 0, 2)})
+        local scaleUp = TweenService:Create(button, Animations.Fast, {Size = config.Size or UDim2.new(1, 0, 0, 40)})
+        
+        scaleDown:Play()
+        scaleDown.Completed:Connect(function()
+            scaleUp:Play()
+        end)
+        
+        if config.Callback then
+            config.Callback()
+        end
+    end)
+    
+    -- Hover effect
+    self:AddHoverEffect(button, config.Color or Theme.Primary, 
+        Color3.fromRGB(
+            math.min(255, (config.Color or Theme.Primary).R * 255 + 20),
+            math.min(255, (config.Color or Theme.Primary).G * 255 + 20),
+            math.min(255, (config.Color or Theme.Primary).B * 255 + 20)
+        )
+    )
+    
+    return button
+end
+
+-- Toggle Component
+function Nebula:CreateToggle(parent: Frame, config: {
+    Text: string,
+    Default: boolean?,
+    Callback: (boolean) -> ()
+})
+    local container = Instance.new("Frame")
+    container.Name = "ToggleContainer"
+    container.Size = UDim2.new(1, 0, 0, 40)
+    container.BackgroundColor3 = Theme.Surface
+    container.BorderSizePixel = 0
+    container.Parent = parent
+    
+    CreateCorner(8).Parent = container
+    
+    local label = Instance.new("TextLabel")
+    label.Name = "Label"
+    label.Size = UDim2.new(1, -60, 1, 0)
+    label.Position = UDim2.new(0, 15, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = config.Text
+    label.TextColor3 = Theme.Text
+    label.TextSize = 14
+    label.Font = Enum.Font.Gotham
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = container
+    
+    local toggleFrame = Instance.new("Frame")
+    toggleFrame.Name = "ToggleFrame"
+    toggleFrame.Size = UDim2.new(0, 40, 0, 20)
+    toggleFrame.Position = UDim2.new(1, -50, 0.5, -10)
+    toggleFrame.BackgroundColor3 = Theme.Border
+    toggleFrame.BorderSizePixel = 0
+    toggleFrame.Parent = container
+    
+    CreateCorner(10).Parent = toggleFrame
+    
+    local toggleButton = Instance.new("Frame")
+    toggleButton.Name = "ToggleButton"
+    toggleButton.Size = UDim2.new(0, 16, 0, 16)
+    toggleButton.Position = UDim2.new(0, 2, 0.5, -8)
+    toggleButton.BackgroundColor3 = Color3.new(1, 1, 1)
+    toggleButton.BorderSizePixel = 0
+    toggleButton.Parent = toggleFrame
+    
+    CreateCorner(8).Parent = toggleButton
+    
+    local isToggled = config.Default or false
+    
+    local function updateToggle()
+        local targetPos = isToggled and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
+        local targetColor = isToggled and Theme.Primary or Theme.Border
+        
+        TweenService:Create(toggleButton, Animations.Medium, {Position = targetPos}):Play()
+        TweenService:Create(toggleFrame, Animations.Medium, {BackgroundColor3 = targetColor}):Play()
+    end
+    
+    updateToggle()
+    
+    local clickDetector = Instance.new("TextButton")
+    clickDetector.Size = UDim2.new(1, 0, 1, 0)
+    clickDetector.BackgroundTransparency = 1
+    clickDetector.Text = ""
+    clickDetector.Parent = container
+    
+    clickDetector.MouseButton1Click:Connect(function()
+        isToggled = not isToggled
+        updateToggle()
+        if config.Callback then
+            config.Callback(isToggled)
+        end
+    end)
+    
+    return container
+end
+
+-- Slider Component
+function Nebula:CreateSlider(parent: Frame, config: {
+    Text: string,
+    Min: number,
+    Max: number,
+    Default: number?,
+    Callback: (number) -> ()
+})
+    local container = Instance.new("Frame")
+    container.Name = "SliderContainer"
+    container.Size = UDim2.new(1, 0, 0, 60)
+    container.BackgroundColor3 = Theme.Surface
+    container.BorderSizePixel = 0
+    container.Parent = parent
+    
+    CreateCorner(8).Parent = container
+    
+    local label = Instance.new("TextLabel")
+    label.Name = "Label"
+    label.Size = UDim2.new(1, -80, 0, 25)
+    label.Position = UDim2.new(0, 15, 0, 5)
+    label.BackgroundTransparency = 1
+    label.Text = config.Text
+    label.TextColor3 = Theme.Text
+    label.TextSize = 14
+    label.Font = Enum.Font.Gotham
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = container
+    
+    local valueLabel = Instance.new("TextLabel")
+    valueLabel.Name = "ValueLabel"
+    valueLabel.Size = UDim2.new(0, 60, 0, 25)
+    valueLabel.Position = UDim2.new(1, -70, 0, 5)
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.Text = tostring(config.Default or config.Min)
+    valueLabel.TextColor3 = Theme.Primary
+    valueLabel.TextSize = 14
+    valueLabel.Font = Enum.Font.GothamMedium
+    valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+    valueLabel.Parent = container
+    
+    local sliderFrame = Instance.new("Frame")
+    sliderFrame.Name = "SliderFrame"
+    sliderFrame.Size = UDim2.new(1, -30, 0, 6)
+    sliderFrame.Position = UDim2.new(0, 15, 1, -20)
+    sliderFrame.BackgroundColor3 = Theme.Border
+    sliderFrame.BorderSizePixel = 0
+    sliderFrame.Parent = container
+    
+    CreateCorner(3).Parent = sliderFrame
+    
+    local sliderFill = Instance.new("Frame")
+    sliderFill.Name = "SliderFill"
+    sliderFill.Size = UDim2.new(0, 0, 1, 0)
+    sliderFill.BackgroundColor3 = Theme.Primary
+    sliderFill.BorderSizePixel = 0
+    sliderFill.Parent = sliderFrame
+    
+    CreateCorner(3).Parent = sliderFill
+    
+    local sliderButton = Instance.new("Frame")
+    sliderButton.Name = "SliderButton"
+    sliderButton.Size = UDim2.new(0, 16, 0, 16)
+    sliderButton.Position = UDim2.new(0, -8, 0.5, -8)
+    sliderButton.BackgroundColor3 = Color3.new(1, 1, 1)
+    sliderButton.BorderSizePixel = 0
+    sliderButton.Parent = sliderFrame
+    
+    CreateCorner(8).Parent = sliderButton
+    CreateStroke(Theme.Primary, 2).Parent = sliderButton
+    
+    local currentValue = config.Default or config.Min
+    local dragging = false
+    
+    local function updateSlider(value: number)
+        currentValue = math.clamp(value, config.Min, config.Max)
+        local percentage = (currentValue - config.Min) / (config.Max - config.Min)
+        
+        sliderFill.Size = UDim2.new(percentage, 0, 1, 0)
+        sliderButton.Position = UDim2.new(percentage, -8, 0.5, -8)
+        valueLabel.Text = string.format("%.1f", currentValue)
+        
+        if config.Callback then
+            config.Callback(currentValue)
+        end
+    end
+    
+    updateSlider(currentValue)
+    
+    sliderFrame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            local relativeX = input.Position.X - sliderFrame.AbsolutePosition.X
+            local percentage = math.clamp(relativeX / sliderFrame.AbsoluteSize.X, 0, 1)
+            local value = config.Min + (config.Max - config.Min) * percentage
+            updateSlider(value)
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local relativeX = input.Position.X - sliderFrame.AbsolutePosition.X
+            local percentage = math.clamp(relativeX / sliderFrame.AbsoluteSize.X, 0, 1)
+            local value = config.Min + (config.Max - config.Min) * percentage
+            updateSlider(value)
+        end
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    
+    return container
+end
+
+-- Input Field Component
+function Nebula:CreateInput(parent: Frame, config: {
+    Text: string,
+    Placeholder: string?,
+    Callback: (string) -> ()
+})
+    local container = Instance.new("Frame")
+    container.Name = "InputContainer"
+    container.Size = UDim2.new(1, 0, 0, 70)
+    container.BackgroundColor3 = Theme.Surface
+    container.BorderSizePixel = 0
+    container.Parent = parent
+    
+    CreateCorner(8).Parent = container
+    
+    local label = Instance.new("TextLabel")
+    label.Name = "Label"
+    label.Size = UDim2.new(1, -20, 0, 25)
+    label.Position = UDim2.new(0, 15, 0, 5)
+    label.BackgroundTransparency = 1
+    label.Text = config.Text
+    label.TextColor3 = Theme.Text
+    label.TextSize = 14
+    label.Font = Enum.Font.Gotham
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = container
+    
+    local inputFrame = Instance.new("Frame")
+    inputFrame.Name = "InputFrame"
+    inputFrame.Size = UDim2.new(1, -30, 0, 30)
+    inputFrame.Position = UDim2.new(0, 15, 1, -35)
+    inputFrame.BackgroundColor3 = Theme.Background
+    inputFrame.BorderSizePixel = 0
+    inputFrame.Parent = container
+    
+    CreateCorner(6).Parent = inputFrame
+    CreateStroke(Theme.Border).Parent = inputFrame
+    
+    local textBox = Instance.new("TextBox")
+    textBox.Name = "TextBox"
+    textBox.Size = UDim2.new(1, -20, 1, 0)
+    textBox.Position = UDim2.new(0, 10, 0, 0)
+    textBox.BackgroundTransparency = 1
+    textBox.Text = ""
+    textBox.PlaceholderText = config.Placeholder or "Enter text..."
+    textBox.TextColor3 = Theme.Text
+    textBox.PlaceholderColor3 = Theme.TextSecondary
+    textBox.TextSize = 14
+    textBox.Font = Enum.Font.Gotham
+    textBox.TextXAlignment = Enum.TextXAlignment.Left
+    textBox.ClearTextOnFocus = false
+    textBox.Parent = inputFrame
+    
+    textBox.FocusLost:Connect(function(enterPressed)
+        if enterPressed and config.Callback then
+            config.Callback(textBox.Text)
+        end
+    end)
+    
+    return container
+end
+
+-- Dropdown Component
+function Nebula:CreateDropdown(parent: Frame, config: {
+    Text: string,
+    Options: {string},
+    Default: string?,
+    Callback: (string) -> ()
+})
+    local container = Instance.new("Frame")
+    container.Name = "DropdownContainer"
+    container.Size = UDim2.new(1, 0, 0, 50)
+    container.BackgroundColor3 = Theme.Surface
+    container.BorderSizePixel = 0
+    container.Parent = parent
+    
+    CreateCorner(8).Parent = container
+    
+    local label = Instance.new("TextLabel")
+    label.Name = "Label"
+    label.Size = UDim2.new(0.5, -10, 1, 0)
+    label.Position = UDim2.new(0, 15, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = config.Text
+    label.TextColor3 = Theme.Text
+    label.TextSize = 14
+    label.Font = Enum.Font.Gotham
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = container
+    
+    local dropdownButton = Instance.new("TextButton")
+    dropdownButton.Name = "DropdownButton"
+    dropdownButton.Size = UDim2.new(0.5, -25, 0, 30)
+    dropdownButton.Position = UDim2.new(0.5, 10, 0.5, -15)
+    dropdownButton.BackgroundColor3 = Theme.Background
+    dropdownButton.BorderSizePixel = 0
+    dropdownButton.Text = config.Default or config.Options[1] or "Select..."
+    dropdownButton.TextColor3 = Theme.Text
+    dropdownButton.TextSize = 13
+    dropdownButton.Font = Enum.Font.Gotham
+    dropdownButton.Parent = container
+    
+    CreateCorner(6).Parent = dropdownButton
+    CreateStroke(Theme.Border).Parent = dropdownButton
+    
+    local arrow = Instance.new("TextLabel")
+    arrow.Name = "Arrow"
+    arrow.Size = UDim2.new(0, 20, 1, 0)
+    arrow.Position = UDim2.new(1, -25, 0, 0)
+    arrow.BackgroundTransparency = 1
+    arrow.Text = "▼"
+    arrow.TextColor3 = Theme.TextSecondary
+    arrow.TextSize = 10
+    arrow.Font = Enum.Font.Gotham
+    arrow.Parent = dropdownButton
+    
+    local dropdownList = Instance.new("Frame")
+    dropdownList.Name = "DropdownList"
+    dropdownList.Size = UDim2.new(0.5, -25, 0, #config.Options * 30)
+    dropdownList.Position = UDim2.new(0.5, 10, 1, 5)
+    dropdownList.BackgroundColor3 = Theme.Background
+    dropdownList.BorderSizePixel = 0
+    dropdownList.Visible = false
+    dropdownList.ZIndex = 10
+    dropdownList.Parent = container
+    
+    CreateCorner(6).Parent = dropdownList
+    CreateStroke(Theme.Border).Parent = dropdownList
+    
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    listLayout.Parent = dropdownList
+    
+    for i, option in ipairs(config.Options) do
+        local optionButton = Instance.new("TextButton")
+        optionButton.Name = "Option" .. i
+        optionButton.Size = UDim2.new(1, 0, 0, 30)
+        optionButton.BackgroundColor3 = Theme.Background
+        optionButton.BorderSizePixel = 0
+        optionButton.Text = option
+        optionButton.TextColor3 = Theme.Text
+        optionButton.TextSize = 13
+        optionButton.Font = Enum.Font.Gotham
+        optionButton.Parent = dropdownList
+        
+        optionButton.MouseButton1Click:Connect(function()
+            dropdownButton.Text = option
+            dropdownList.Visible = false
+            arrow.Text = "▼"
+            
+            if config.Callback then
+                config.Callback(option)
+            end
+        end)
+        
+        self:AddHoverEffect(optionButton, Theme.Background, Theme.Hover)
+    end
+    
+    dropdownButton.MouseButton1Click:Connect(function()
+        dropdownList.Visible = not dropdownList.Visible
+        arrow.Text = dropdownList.Visible and "▲" or "▼"
+    end)
+    
+    return container
+end
+
+-- Notification System
+function Nebula:CreateNotification(config: {
+    Title: string,
+    Description: string?,
+    Type: string?, -- "success", "warning", "error", "info"
+    Duration: number?
+})
+    local notifGui = Instance.new("ScreenGui")
+    notifGui.Name = "NebulaNotification"
+    notifGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+    
+    local notification = Instance.new("Frame")
+    notification.Name = "Notification"
+    notification.Size = UDim2.new(0, 300, 0, 80)
+    notification.Position = UDim2.new(1, 20, 0, 20)
+    notification.BackgroundColor3 = Theme.Surface
+    notification.BorderSizePixel = 0
+    notification.Parent = notifGui
+    
+    CreateCorner(8).Parent = notification
+    CreateStroke(Theme.Border).Parent = notification
+    
+    -- Color based on type
+    local typeColors = {
+        success = Theme.Success,
+        warning = Theme.Warning,
+        error = Theme.Error,
+        info = Theme.Primary
+    }
+    
+    local typeColor = typeColors[config.Type or "info"] or Theme.Primary
+    
+    local colorBar = Instance.new("Frame")
+    colorBar.Name = "ColorBar"
+    colorBar.Size = UDim2.new(0, 4, 1, 0)
+    colorBar.BackgroundColor3 = typeColor
+    colorBar.BorderSizePixel = 0
+    colorBar.Parent = notification
+    
+    CreateCorner(2).Parent = colorBar
+    
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Size = UDim2.new(1, -20, 0, 25)
+    title.Position = UDim2.new(0, 15, 0, 10)
+    title.BackgroundTransparency = 1
+    title.Text = config.Title
+    title.TextColor3 = Theme.Text
+    title.TextSize = 14
+    title.Font = Enum.Font.GothamBold
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = notification
+    
+    if config.Description then
+        local description = Instance.new("TextLabel")
+        description.Name = "Description"
+        description.Size = UDim2.new(1, -20, 0, 35)
+        description.Position = UDim2.new(0, 15, 0, 35)
+        description.BackgroundTransparency = 1
+        description.Text = config.Description
+        description.TextColor3 = Theme.TextSecondary
+        description.TextSize = 12
+        description.Font = Enum.Font.Gotham
+        description.TextXAlignment = Enum.TextXAlignment.Left
+        description.TextWrapped = true
+        description.Parent = notification
+    end
+    
+    -- Slide in animation
+    TweenService:Create(notification, Animations.Medium, {
+        Position = UDim2.new(1, -320, 0, 20)
+    }):Play()
+    
+    -- Auto-dismiss
+    task.wait(config.Duration or 3)
+    
+    TweenService:Create(notification, Animations.Medium, {
+        Position = UDim2.new(1, 20, 0, 20)
+    }):Play()
+    
+    task.wait(0.3)
+    notifGui:Destroy()
+end
+
+-- Destroy function
+function Nebula:Destroy()
+    if self.ScreenGui then
+        self.ScreenGui:Destroy()
+    end
+end
+
+return Nebula
